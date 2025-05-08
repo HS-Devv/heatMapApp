@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heat Map Maker</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let isDrawing = false;
+        let isDragging = false;
+        let isResizing = false;
+        let startX, startY, rectX, rectY, rectWidth, rectHeight;
+        const rectangles = [];
+        let selectedRect = null;
+        let selectedHandle = null;
+        let offsetX = 0, offsetY = 0;
+        const handleSize = 16;
+        const handleRadius = 8;
+
+        function drawAllRectangles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            rectangles.forEach(rect => {
+                const overlapCount = countOverlaps(rect);
+                ctx.fillStyle = getOverlapColor(overlapCount);
+                ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+                ctx.strokeStyle = '#000';
+                ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+                drawHandles(rect);
+            });
+        }
+
+        function drawHandles(rect) {
+            const handles = [
+                { x: rect.x, y: rect.y, corner: 'top-left' },
+                { x: rect.x + rect.width, y: rect.y, corner: 'top-right' },
+                { x: rect.x, y: rect.y + rect.height, corner: 'bottom-left' },
+                { x: rect.x + rect.width, y: rect.y + rect.height, corner: 'bottom-right' }
+            ];
+
+            ctx.fillStyle = '#333';
+            handles.forEach(handle => {
+                ctx.beginPath();
+                ctx.arc(handle.x, handle.y, handleRadius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function countOverlaps(targetRect) {
+            return rectangles.reduce((count, rect) => {
+                if (rect !== targetRect &&
+                    rect.x < targetRect.x + targetRect.width &&
+                    rect.x + rect.width > targetRect.x &&
+                    rect.y < targetRect.y + targetRect.height &&
+                    rect.y + rect.height > targetRect.y) {
+                    count++;
+                }
+                return count;
+            }, 0);
+        }
+
+        function getOverlapColor(overlapCount) {
+            const maxOverlap = 5;  // Adjust as needed for stronger or weaker color shifts
+            const ratio = Math.min(overlapCount / maxOverlap, 1);
+            const red = Math.round(255 * ratio);
+            const green = Math.round(255 * (1 - ratio));
+            return `rgb(${red}, ${green}, 0)`;
+        }
+
+        function getHandleAtPosition(x, y, rect) {
+            const handles = [
+                { x: rect.x, y: rect.y, corner: 'top-left' },
+                { x: rect.x + rect.width, y: rect.y, corner: 'top-right' },
+                { x: rect.x, y: rect.y + rect.height, corner: 'bottom-left' },
+                { x: rect.x + rect.width, y: rect.y + rect.height, corner: 'bottom-right' }
+            ];
+
+            return handles.find(handle =>
+                Math.sqrt(Math.pow(x - handle.x, 2) + Math.pow(y - handle.y, 2)) <= handleRadius + 4
+            );
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            selectedRect = rectangles.find(rect =>
+                mouseX > rect.x && mouseX < rect.x + rect.width &&
+                mouseY > rect.y && mouseY < rect.y + rect.height
+            );
+
+            if (selectedRect) {
+                const handle = getHandleAtPosition(mouseX, mouseY, selectedRect);
+                if (handle) {
+                    isResizing = true;
+                    selectedHandle = handle;
+                } else {
+                    isDragging = true;
+                    offsetX = mouseX - selectedRect.x;
+                    offsetY = mouseY - selectedRect.y;
+                }
+            } else {
+                isDrawing = true;
+                startX = mouseX;
+                startY = mouseY;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDrawing) {
+                rectX = Math.min(startX, e.clientX);
+                rectY = Math.min(startY, e.clientY);
+                rectWidth = Math.abs(e.clientX - startX);
+                rectHeight = Math.abs(e.clientY - startY);
+                drawAllRectangles();
+                ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+            } else if (isDragging && selectedRect) {
+                selectedRect.x = e.clientX - offsetX;
+                selectedRect.y = e.clientY - offsetY;
+                drawAllRectangles();
+            } else if (isResizing && selectedRect && selectedHandle) {
+                switch (selectedHandle.corner) {
+                    case 'top-left':
+                        selectedRect.width += selectedRect.x - e.clientX;
+                        selectedRect.height += selectedRect.y - e.clientY;
+                        selectedRect.x = e.clientX;
+                        selectedRect.y = e.clientY;
+                        break;
+                    case 'top-right':
+                        selectedRect.width = e.clientX - selectedRect.x;
+                        selectedRect.height += selectedRect.y - e.clientY;
+                        selectedRect.y = e.clientY;
+                        break;
+                    case 'bottom-left':
+                        selectedRect.width += selectedRect.x - e.clientX;
+                        selectedRect.x = e.clientX;
+                        selectedRect.height = e.clientY - selectedRect.y;
+                        break;
+                    case 'bottom-right':
+                        selectedRect.width = e.clientX - selectedRect.x;
+                        selectedRect.height = e.clientY - selectedRect.y;
+                        break;
+                }
+                drawAllRectangles();
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (isDrawing) {
+                rectangles.push({ x: rectX, y: rectY, width: rectWidth, height: rectHeight });
+                drawAllRectangles();
+            }
+            isDrawing = false;
+            isDragging = false;
+            isResizing = false;
+            selectedRect = null;
+            selectedHandle = null;
+        });
+    </script>
+</body>
+</html>
