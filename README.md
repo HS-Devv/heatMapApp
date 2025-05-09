@@ -10,10 +10,6 @@ In this early version of the heat map app, you are able to:
 The rectangles created by you will be white and added to an array called "rectangles".
 The overlapping regions will be highlighted in red and added to an array called "overlapRects".
 
-Here's an example of many overlapping rectangles:
-![09 mar 2025 example](\Screenshot 2025-05-08 at 4.19.19 PM.png)
-
-
 # To Do
 Planned feautres for this app include:
 - Gradient style heat maps.
